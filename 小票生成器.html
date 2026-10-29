@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>餐饮结算小票生成器 DEMO</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: #eef1f5;
+    color: #333;
+    min-height: 100vh;
+  }
+  .app {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+    align-items: flex-start;
+  }
+
+  /* ===== 左侧编辑区 ===== */
+  .editor {
+    flex: 1;
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .editor h1 {
+    font-size: 18px;
+    margin-bottom: 16px;
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 8px;
+  }
+  .section {
+    margin-bottom: 18px;
+  }
+  .section h2 {
+    font-size: 14px;
+    color: #7f8c8d;
+    margin-bottom: 8px;
+    font-weight: normal;
+  }
+  .row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .row label {
+    flex: 1;
+    min-width: 120px;
+    font-size: 12px;
+    color: #555;
+  }
+  .row input, .row select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 13px;
+    margin-top: 3px;
+  }
+  table.items {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 6px;
+  }
+  table.items th, table.items td {
+    border: 1px solid #e0e0e0;
+    padding: 5px;
+    font-size: 12px;
+    text-align: center;
+  }
+  table.items th { background: #f7f9fa; }
+  table.items input {
+    width: 100%;
+    border: none;
+    outline: none;
+    font-size: 12px;
+    text-align: center;
+    background: transparent;
+  }
+  table.items td.name input { text-align: left; }
+  .btn {
+    padding: 7px 14px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    margin-right: 6px;
+    margin-top: 6px;
+  }
+  .btn-primary { background: #3498db; color: #fff; }
+  .btn-green { background: #27ae60; color: #fff; }
+  .btn-orange { background: #e67e22; color: #fff; }
+  .btn-gray { background: #95a5a6; color: #fff; }
+  .btn-danger { background: #e74c3c; color: #fff; padding: 3px 8px; font-size: 11px; margin: 0; }
+  .actions {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed #ccc;
+  }
+
+  /* ===== 右侧小票预览 ===== */
+  .preview-wrap {
+    flex-shrink: 0;
+    position: sticky;
+    top: 20px;
+  }
+  .preview-label {
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    margin-bottom: 8px;
+  }
+  /* 80mm 小票，按屏幕 96dpi 比例缩放预览 */
+  .receipt {
+    width: 80mm;
+    background: #fff;
+    padding: 8mm 5mm;
+    font-family: "Courier New", Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    color: #000;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+    /* 屏幕预览时放大一点方便看 */
+    transform: scale(1.6);
+    transform-origin: top center;
+    margin-bottom: calc(80mm * 1.6);
+  }
+  .receipt .center { text-align: center; }
+  .receipt .hotel-name {
+    font-size: 16px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    margin: 4px 0;
+  }
+  .receipt .sub {
+    font-size: 11px;
+    margin: 2px 0;
+  }
+  .receipt .divider {
+    border-top: 1px dashed #000;
+    margin: 6px 0;
+  }
+  .receipt .info-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+  }
+  .receipt table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 4px 0;
+    font-size: 11px;
+  }
+  .receipt table th, .receipt table td {
+    padding: 2px 0;
+  }
+  .receipt table th {
+    border-top: 1px dashed #000;
+    border-bottom: 1px dashed #000;
+    font-weight: normal;
+  }
+  .receipt .amt { text-align: right; }
+  .receipt .qty { text-align: center; }
+  .receipt .total-row {
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+    font-size: 13px;
+    border-top: 1px dashed #000;
+    margin-top: 4px;
+    padding-top: 4px;
+  }
+  .receipt .qr {
+    width: 60px;
+    height: 60px;
+    margin: 8px auto;
+    background:
+      repeating-linear-gradient(0deg, #000 0 2px, transparent 2px 4px),
+      repeating-linear-gradient(90deg, #000 0 2px, transparent 2px 4px);
+    border: 1px solid #000;
+  }
+  .receipt .logo-img {
+    max-width: 50mm;
+    max-height: 20mm;
+    display: block;
+    margin: 0 auto 4px;
+  }
+
+  /* ===== 打印样式：只打小票，按80mm纸 ===== */
+  @media print {
+    body { background: #fff; }
+    .editor, .preview-label { display: none !important; }
+    .app { padding: 0; margin: 0; display: block; }
+    .preview-wrap { position: static; }
+    .receipt {
+      transform: none !important;
+      box-shadow: none;
+      margin: 0;
+      width: 80mm;
+    }
+    @page {
+      size: 80mm auto;
+      margin: 0;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ========== 左侧编辑 ========== -->
+  <div class="editor">
+    <h1>餐饮结算小票 · DEMO</h1>
+
+    <div class="section">
+      <h2>抬头信息</h2>
+      <div class="row">
+        <label>酒店名称
+          <input id="hotelName" value="福悦轩大酒楼">
+        </label>
+        <label>电话
+          <input id="hotelTel" value="0591-8888 6666">
+        </label>
+      </div>
+      <div class="row">
+        <label>地址
+          <input id="hotelAddr" value="福州市鼓楼区五四路 128 号">
+        </label>
+      </div>
+      <div class="row">
+        <label>LOGO
+          <input type="file" id="logoInput" accept="image/*">
+        </label>
+        <label>&nbsp;
+          <button class="btn btn-gray" type="button" onclick="clearLogo()">移除LOGO</button>
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>账单信息</h2>
+      <div class="row">
+        <label>单号
+          <input id="billNo" value="202610270088">
+        </label>
+        <label>日期时间
+          <input id="billTime" type="datetime-local">
+        </label>
+      </div>
+      <div class="row">
+        <label>桌号
+          <input id="tableNo" value="A08">
+        </label>
+        <label>服务员
+          <input id="waiter" value="小张">
+        </label>
+      </div>
+      <div class="row">
+        <label>收银员
+          <input id="cashier" value="001">
+        </label>
+        <label>支付方式
+          <select id="payType">
+            <option>微信支付</option>
+            <option>支付宝</option>
+            <option>现金</option>
+            <option>银行卡</option>
+            <option>会员余额</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>菜品明细</h2>
+      <table class="items">
+        <thead>
+          <tr>
+            <th style="width:40%">菜名</th>
+            <th style="width:15%">数量</th>
+            <th style="width:20%">单价</th>
+            <th style="width:20%">金额</th>
+            <th style="width:5%"></th>
+          </tr>
+        </thead>
+        <tbody id="itemBody"></tbody>
+      </table>
+      <button class="btn btn-primary" type="button" onclick="addItem()">+ 添加菜品</button>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-green" type="button" onclick="window.print()">打印 / 另存 PDF</button>
+      <button class="btn btn-orange" type="button" onclick="exportJPG()">导出 JPG</button>
+      <button class="btn btn-gray" type="button" onclick="fillDemo()">填入示例</button>
+    </div>
+  </div>
+
+  <!-- ========== 右侧预览 ========== -->
+  <div class="preview-wrap">
+    <div class="preview-label">— 小票预览（80mm）—</div>
+    <div class="receipt" id="receipt">
+      <div class="center" id="logoArea"></div>
+      <div class="center hotel-name" id="rHotel">福悦轩大酒楼</div>
+      <div class="center sub" id="rAddr"></div>
+      <div class="center sub" id="rTel"></div>
+      <div class="divider"></div>
+      <div class="info-line"><span>单号：<span id="rNo"></span></span></div>
+      <div class="info-line"><span>时间：<span id="rTime"></span></span></div>
+      <div class="info-line"><span>桌号：<span id="rTable"></span></span><span>服务员：<span id="rWaiter"></span></span></div>
+      <div class="divider"></div>
+      <table>
+        <thead>
+          <tr><th>品名</th><th class="qty">数量</th><th class="amt">金额</th></tr>
+        </thead>
+        <tbody id="rItems"></tbody>
+      </table>
+      <div class="total-row"><span>合计</span><span>¥<span id="rTotal">0.00</span></span></div>
+      <div class="info-line" style="margin-top:4px"><span>支付方式</span><span id="rPay"></span></div>
+      <div class="info-line"><span>收银员</span><span id="rCashier"></span></div>
+      <div class="divider"></div>
+      <div class="center sub">谢谢惠顾 · 欢迎再次光临</div>
+      <div class="center sub">—— 此单为结算凭证 ——</div>
+      <div class="qr"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===== 默认数据 =====
+  const defaultItems = [
+    { name: "清蒸大黄鱼", qty: 1, price: 128.00 },
+    { name: "白灼基围虾", qty: 2, price: 68.00 },
+    { name: "佛跳墙（位）", qty: 3, price: 58.00 },
+    { name: "清炒时蔬", qty: 1, price: 28.00 },
+    { name: "米饭", qty: 4, price: 3.00 },
+    { name: "鲜榨玉米汁", qty: 2, price: 22.00 },
+  ];
+  let items = [...defaultItems];
+  let logoDataUrl = null;
+
+  // ===== 初始化时间 =====
+  function nowLocal() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  document.getElementById("billTime").value = nowLocal();
+
+  // ===== 渲染编辑表格 =====
+  function addItem(data) {
+    items.push(data || { name: "", qty: 1, price: 0 });
+    renderItems();
+  }
+  function delItem(i) {
+    items.splice(i, 1);
+    renderItems();
+  }
+  function renderItems() {
+    const tb = document.getElementById("itemBody");
+    tb.innerHTML = "";
+    items.forEach((it, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="name"><input value="${it.name}" oninput="updateItem(${i},'name',this.value)"></td>
+        <td><input type="number" min="0" step="1" value="${it.qty}" oninput="updateItem(${i},'qty',this.value)"></td>
+        <td><input type="number" min="0" step="0.01" value="${it.price}" oninput="updateItem(${i},'price',this.value)"></td>
+        <td class="amt">${(Number(it.qty)*Number(it.price)).toFixed(2)}</td>
+        <td><button class="btn-danger" onclick="delItem(${i})">删</button></td>
+      `;
+      tb.appendChild(tr);
+    });
+    renderReceipt();
+  }
+  function updateItem(i, key, val) {
+    if (key === "name") items[i][key] = val;
+    else items[i][key] = Number(val) || 0;
+    renderItems();
+  }
+
+  // ===== 渲染小票 =====
+  function renderReceipt() {
+    document.getElementById("rHotel").textContent = document.getElementById("hotelName").value;
+    document.getElementById("rAddr").textContent = document.getElementById("hotelAddr").value;
+    document.getElementById("rTel").textContent = "Tel: " + document.getElementById("hotelTel").value;
+    document.getElementById("rNo").textContent = document.getElementById("billNo").value;
+    const t = document.getElementById("billTime").value.replace("T", " ");
+    document.getElementById("rTime").textContent = t;
+    document.getElementById("rTable").textContent = document.getElementById("tableNo").value;
+    document.getElementById("rWaiter").textContent = document.getElementById("waiter").value;
+    document.getElementById("rPay").textContent = document.getElementById("payType").value;
+    document.getElementById("rCashier").textContent = document.getElementById("cashier").value;
+
+    // LOGO
+    const la = document.getElementById("logoArea");
+    if (logoDataUrl) {
+      la.innerHTML = `<img class="logo-img" src="${logoDataUrl}">`;
+    } else {
+      la.innerHTML = "";
+    }
+
+    // 明细
+    const ri = document.getElementById("rItems");
+    ri.innerHTML = "";
+    let total = 0;
+    items.forEach(it => {
+      const amt = Number(it.qty) * Number(it.price);
+      total += amt;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${it.name || "（未命名）"}</td>
+        <td class="qty">${it.qty}×${Number(it.price).toFixed(2)}</td>
+        <td class="amt">${amt.toFixed(2)}</td>
+      `;
+      ri.appendChild(tr);
+    });
+    document.getElementById("rTotal").textContent = total.toFixed(2);
+  }
+
+  // ===== 绑定所有输入 =====
+  ["hotelName","hotelAddr","hotelTel","billNo","billTime","tableNo","waiter","cashier","payType"]
+    .forEach(id => document.getElementById(id).addEventListener("input", renderReceipt));
+  document.getElementById("payType").addEventListener("change", renderReceipt);
+
+  // ===== LOGO 上传 =====
+  document.getElementById("logoInput").addEventListener("change", e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = ev => { logoDataUrl = ev.target.result; renderReceipt(); };
+    reader.readAsDataURL(f);
+  });
+  function clearLogo() {
+    logoDataUrl = null;
+    document.getElementById("logoInput").value = "";
+    renderReceipt();
+  }
+
+  // ===== 示例填充 =====
+  function fillDemo() {
+    document.getElementById("hotelName").value = "福悦轩大酒楼";
+    document.getElementById("hotelAddr").value = "福州市鼓楼区五四路 128 号";
+    document.getElementById("hotelTel").value = "0591-8888 6666";
+    document.getElementById("billNo").value = "202610270088";
+    document.getElementById("tableNo").value = "A08";
+    document.getElementById("waiter").value = "小张";
+    document.getElementById("cashier").value = "001";
+    document.getElementById("billTime").value = nowLocal();
+    items = [...defaultItems];
+    renderItems();
+  }
+
+  // ===== 导出 JPG：用 SVG foreignObject 把小票 DOM 序列化 =====
+  function exportJPG() {
+    const node = document.getElementById("receipt");
+    const w = node.offsetWidth;
+    const h = node.offsetHeight;
+    const clone = node.cloneNode(true);
+    // 去掉屏幕缩放影响
+    clone.style.transform = "none";
+    const xml = new XMLSerializer().serializeToString(clone);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
+      <foreignObject width="100%" height="100%">
+        <div xmlns="http://www.w3.org/1999/xhtml">${xml}</div>
+      </foreignObject>
+    </svg>`;
+    const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      const scale = 3; // 3倍清晰度
+      const canvas = document.createElement("canvas");
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b => {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(b);
+        a.download = "小票_" + document.getElementById("billNo").value + ".jpg";
+        a.click();
+      }, "image/jpeg", 0.95);
+    };
+    img.onerror = () => alert("JPG 导出失败：当前浏览器不支持，请用浏览器打印另存 PDF。");
+    img.src = url;
+  }
+
+  // ===== 首次渲染 =====
+  renderItems();
+</script>
+</body>
+</html>
